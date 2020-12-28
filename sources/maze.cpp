@@ -57,7 +57,7 @@ void maze::generate(int height, int width) {
                     setsMap.erase(it);
                     setsMap.insert({it, leftSet});
                 }
-                map.vertical[verticalIndex] = 1.f;//(noise.GetNoise((float)x, (float)y) + 1) / 2;
+                map.vertical[verticalIndex] = ((noise.GetNoise((float)x, (float)y) + 1) / 2) + 0.00001;
             }
         } else { // Choose horizontal
             if (queueHorizontal.empty()) {
@@ -82,7 +82,7 @@ void maze::generate(int height, int width) {
                     setsMap.erase(it);
                     setsMap.insert({it, upSet});
                 }
-                map.horizontal[horizontalIndex] = 1.f; //(noise.GetNoise((float)x, (float)y) + 1) / 2;
+                map.horizontal[horizontalIndex] = ((noise.GetNoise((float)x, (float)y) + 1) / 2) + 0.00001;
             }
         }
     }

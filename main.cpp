@@ -20,77 +20,6 @@ std::vector<Vector> dir4 = {
         Point(0, -1)
 };
 
-float data[][5] = {
-        {1.0, 1.0, 1.0, 1.0, 1.0},
-        {1.0, 0.0, 1.0, 1.0, 1.0},
-        {1.0, 0.0, 1.0, 1.0, 1.0},
-        {1.0, 0.0, 0.0, 0.0, 1.0},
-        {1.0, 0.0, 1.0, 1.0, 1.0},
-};
-
-class TestMap : public Map {
-public:
-    size_t width() override {
-        return 5;
-    }
-    size_t height() override {
-        return 5;
-    }
-    Point start() override {
-        return {4, 0};
-    }
-    Point goal() override {
-        return {0, 4};
-    }
-    float get_edge(Point position, Vector direction) override {
-        auto to = position + direction;
-        if (to.x < 0 || to.y < 0 || to.x >= width() || to.y >= height())
-            return 1.f; //std::_nanf();
-        return data[to.y][to.x];// == 1.f ? std::_nanf() : data[to.y][to.x];
-    }
-    std::vector<Vector> directions() override {
-        return dir4;
-    }
-};
-
-
-class TestMapGenerator : public MapGenerator {
-public:
-    MapPtr generate() override {
-        return std::make_shared<TestMap>();
-    }
-};
-
-
-class ClassicAStar : public AStar {
-public:
-    explicit ClassicAStar(MapPtr map) : AStar(std::move(map)) {}
-    Path trace() override {
-
-        auto dirs = map().directions();
-
-        auto closed = std::unordered_set<Point>();
-        auto open = std::priority_queue<Path>();
-
-        open.emplace(map().start(), map().goal());
-        while (!open.empty()) {
-            auto p = open.top();
-            open.pop();
-            auto x = p.back();
-            if (closed.find(x) != closed.end())
-                continue;
-            if (x == map().goal())
-                return p;
-            closed.insert(x);
-            for (auto& it: dirs)
-                if (map().can_pass(x, it)) {
-                    open.push(p.add(x + it, map().get_edge(x, it))); // TO-DO: cost
-                }
-        }
-        return Path();
-    }
-};
-
 struct Property {
     Point point{};
     Point previous{};
@@ -98,18 +27,17 @@ struct Property {
     float f_score{};
 
     Property() = default;
+
     explicit Property(Point _point, Point _previous = Point(-1, -1), float _g_score = 0.f, float _f_score = 0.f)
             : point(_point), previous(_previous), g_score(_g_score), f_score(_f_score) {}
 
-    bool operator <(const Property& other) const {
+    bool operator<(const Property &other) const {
         return f_score > other.f_score;
     }
 };
 
-Path reconstruct_path(const std::unordered_map<Point, Property>& propertyMap, Point current)
-{
+Path reconstruct_path(const std::unordered_map<Point, Property> &propertyMap, Point current) {
     Path total_path;
-//    total_path.push_front(current);
     for (auto it = propertyMap.find(current); it != propertyMap.end(); it = propertyMap.find(it->second.previous)) {
         total_path.push_front(it->second.point);
     }
@@ -119,14 +47,10 @@ Path reconstruct_path(const std::unordered_map<Point, Property>& propertyMap, Po
 auto m = maze{};
 
 
-
-void get_neighbors(Point point, std::vector<Point>& out) {
+void get_neighbors(Point point, std::vector<Point> &out) {
     out.clear();
-    for (auto& dir : dir4) {
+    for (auto &dir : dir4) {
         auto new_point = point + dir;
-//        if (new_point.x < 0 || new_point.y < 0 || new_point.x > 4 || new_point.y > 4)
-//            continue;
-//        if (data[new_point.y][new_point.x] != 0.f) {
         if (m.get_edge(point, new_point) != 0.f) {
             out.push_back(new_point);
         }
@@ -138,38 +62,20 @@ float distance(Point a, Point b) {
 }
 
 float weight(Point a, Point b) {
-    return m.get_edge(a, b); // data[b.y][b.x];
+    return m.get_edge(a, b);
 }
 
-// A* finds a path from start to goal.
-// h is the heuristic function. h(n) estimates the cost to reach goal from node n.
-Path a_star_classic(Point start, Point goal, float (*h)(Point, Point)) {
-    // The set of discovered nodes that may need to be (re-)expanded.
-    // Initially, only the start node is known.
-    // This is usually implemented as a min-heap or priority queue rather than a hash-set.
+Path a_star_sequential(Point start, Point goal, float (*h)(Point, Point)) {
     std::priority_queue<Property> openSet;
     openSet.emplace(start, Point(-1, -1), 0.f, h(start, goal));
-
     auto closedSet = std::unordered_set<Point>();
+
 
     std::unordered_map<Point, Property> propertyMap;
     propertyMap[start] = openSet.top();
-    // For node n, cameFrom[n] is the node immediately preceding it on the cheapest path from start
-    // to n currently known.
-//    auto cameFrom = std::unordered_map<Point, Point>();
-
     std::vector<Point> neighbors;
-    // For node n, gScore[n] is the cost of the cheapest path from start to n currently known.
-//    auto gScore = std::unordered_map<Point, float>(); // map with default value of Infinity
-//    gScore[start] = 0;
-
-    // For node n, fScore[n] := gScore[n] + h(n). fScore[n] represents our current best guess as to
-    // how short a path from start to finish can be if it goes through n.
-//    auto fScore = std::unordered_map<Point, float>(); // map with default value of Infinity
-//    fScore[start] = h(start);
 
     while (!openSet.empty()) {
-        // This operation can occur in O(1) time if openSet is a min-heap or a priority queue
         auto currentProperty = openSet.top();
         auto current = currentProperty.point;
 
@@ -185,8 +91,6 @@ Path a_star_classic(Point start, Point goal, float (*h)(Point, Point)) {
 
         get_neighbors(current, neighbors);
         for (auto neighbor : neighbors) {
-            // d(current,neighbor) is the weight of the edge from current to neighbor
-            // tentative_gScore is the distance from start to the neighbor through current
             auto tentative_gScore = currentProperty.g_score + weight(current, neighbor);
             auto neighborProperty = propertyMap.find(neighbor);
             if (neighborProperty == propertyMap.end() || tentative_gScore < neighborProperty->second.g_score) {
@@ -196,8 +100,6 @@ Path a_star_classic(Point start, Point goal, float (*h)(Point, Point)) {
             }
         }
     }
-
-    // Open set is empty but goal was never reached
     return Path();
 }
 
@@ -215,11 +117,13 @@ Point H2;
 float h1(Point p) {
     return p.manhattan(H1);
 }
+
 float h2(Point p) {
     return p.manhattan(H2);
 }
+
 float d1(Point a, Point b) {
-    return m.get_edge(a, b); //data[b.y][b.x];
+    return m.get_edge(a, b);
 }
 
 // Global vars
@@ -232,12 +136,15 @@ std::unordered_map<Point, float> g2;
 std::unordered_map<Point, float> f2;
 
 struct Point_comparator {
-    std::unordered_map<Point, float>& f;
+    std::unordered_map<Point, float> &f;
+
     bool operator()(Point a, Point b) {
         return f[a] > f[b];
     }
-    explicit Point_comparator(std::unordered_map<Point, float>& _f) : f(_f) {}
+
+    explicit Point_comparator(std::unordered_map<Point, float> &_f) : f(_f) {}
 };
+
 typedef std::priority_queue<Point, std::vector<Point>, Point_comparator> priority_queue;
 auto open1 = priority_queue(Point_comparator(f1));
 auto open2 = priority_queue(Point_comparator(f2));
@@ -254,19 +161,19 @@ std::unordered_map<Point, Point> o1;
 std::unordered_map<Point, Point> o2;
 
 
-void a_star_new_bidir_kernel(
-        priority_queue& open,
-        std::unordered_map<Point, float>& g,
-        std::unordered_map<Point, float>& f,
-        std::atomic<float>& F,
-        std::unordered_map<Point, Point>& o,
+void a_star_new_bidirectional_kernel(
+        priority_queue &open,
+        std::unordered_map<Point, float> &g,
+        std::unordered_map<Point, float> &f,
+        std::atomic<float> &F,
+        std::unordered_map<Point, Point> &o,
         float (*h)(Point),
         float (*d)(Point, Point),
 
-        std::unordered_map<Point, float>& g_other,
-        std::unordered_map<Point, float>& f_other,
-        std::atomic<float>& F_other,
-        std::unordered_map<Point, Point>& o_other,
+        std::unordered_map<Point, float> &g_other,
+        std::unordered_map<Point, float> &f_other,
+        std::atomic<float> &F_other,
+        std::unordered_map<Point, Point> &o_other,
         float (*h_other)(Point)) {
 
     std::vector<Point> neighbors;
@@ -281,7 +188,7 @@ void a_star_new_bidir_kernel(
                 get_neighbors(x, neighbors);
                 for (auto y : neighbors) {
                     // TODO: remove braces
-                    if ((!x_in(M, y)) && ((!x_in(g, y)) || (g[y] > (g[x] + d(x, y))))) {
+                    if (!x_in(M, y) && (!x_in(g, y) || g[y] > (g[x] + d(x, y)))) {
                         g[y] = g[x] + d(x, y);
                         f[y] = g[x] + h(y);
                         o[y] = x;
@@ -311,14 +218,15 @@ void a_star_new_bidir_kernel(
     }
 }
 
-void a_star_new_bidir_thread_starter(int i) {
-    if (i == 0)
-        a_star_new_bidir_kernel(open1, g1, f1, F1, o1, h1, d1, g2, f2, F2, o2, h2);
-    else
-        a_star_new_bidir_kernel(open2, g2, f2, F2, o2, h2, d1, g1, f1, F1, o1, h1); // TODO: d2
+void a_star_new_bidirectional_thread_starter(int i) {
+    if (i == 0) {
+        a_star_new_bidirectional_kernel(open1, g1, f1, F1, o1, h1, d1, g2, f2, F2, o2, h2);
+    } else {
+        a_star_new_bidirectional_kernel(open2, g2, f2, F2, o2, h2, d1, g1, f1, F1, o1, h1);
+    }
 }
 
-Path a_star_new_bidir_parallel(Point start, Point goal) {
+Path a_star_new_bidirectional_parallel(Point start, Point goal) {
     open1.push(start);
     H1 = goal;
     g1[start] = 0.f;
@@ -331,34 +239,10 @@ Path a_star_new_bidir_parallel(Point start, Point goal) {
     f2[goal] = h2(goal);
     F2 = f2[goal];
 
-    std::thread t1(a_star_new_bidir_thread_starter, 0);
-    std::thread t2(a_star_new_bidir_thread_starter, 1);
+    std::thread t1(a_star_new_bidirectional_thread_starter, 0);
+    std::thread t2(a_star_new_bidirectional_thread_starter, 1);
     t1.join();
     t2.join();
-
-//    for (size_t y = 0; y < m.height(); ++y) {
-//        for (size_t x = 0; x < m.width(); ++x) {
-//            auto it = o1.find(Point(x, y));
-//            if (it != o1.end()) {
-//                std::cout << "(" << it->second.x << " " << it->second.y << ") ";
-//            } else {
-//                std::cout << "(- -) ";
-//            }
-//        }
-//        std::cout << std::endl;
-//    }
-//    std::cout << std::endl;
-//    for (size_t y = 0; y < m.height(); ++y) {
-//        for (size_t x = 0; x < m.width(); ++x) {
-//            auto it = o2.find(Point(x, y));
-//            if (it != o2.end()) {
-//                std::cout << "(" << it->second.x << " " << it->second.y << ") ";
-//            } else {
-//                std::cout << "(- -) ";
-//            }
-//        }
-//        std::cout << std::endl;
-//    }
 
     Path path;
     path.push_back(middle);
@@ -371,14 +255,11 @@ Path a_star_new_bidir_parallel(Point start, Point goal) {
         path.push_back(it->second);
     }
 
-//    for (auto& x : path) {
-//        std::cout << x.x << " " << x.y << std::endl;
-//    }
     return path;
 }
 
 
-void output(maze& map, Path& path) {
+void output(maze &map, Path &path) {
     std::cout << "+";
     for (size_t i = 0; i < map.width(); ++i) {
         std::cout << "-+";
@@ -388,78 +269,54 @@ void output(maze& map, Path& path) {
     for (size_t j = 0; j < map.height(); ++j) {
         std::cout << "|";
         for (size_t i = 0; i < map.width() - 1; ++i) {
-            const char* right = map.get_edge(Point(i, j), Vector(i + 1, j)) == 0.f ? "|" : " ";
-            const char* mid = x_find(path, Point(i, j)) == path.end() ? " " : "X";
+            const char *right = map.get_edge(Point(i, j), Vector(i + 1, j)) == 0.f ? "|" : " ";
+            const char *mid = x_find(path, Point(i, j)) == path.end() ? " " : "X";
             std::cout << mid << right;
         }
-        const char* mid = x_find(path, Point(map.width() - 1, j)) == path.end() ? " " : "X";
+        const char *mid = x_find(path, Point(map.width() - 1, j)) == path.end() ? " " : "X";
         std::cout << mid << "|" << std::endl << "+";
         for (size_t i = 0; i < map.width(); ++i) {
-            const char* bottom = map.get_edge(Point(i, j), Vector(i, j + 1)) == 0.f ? "-" : " ";
+            const char *bottom = map.get_edge(Point(i, j), Vector(i, j + 1)) == 0.f ? "-" : " ";
             std::cout << bottom << "+";
         }
         std::cout << std::endl;
     }
-//    for (auto &c : path) {
-//        std::cout << c.x << " " << c.y << std::endl;
-//    }
 }
 
 
-std::size_t measure(void (*block)(int, int), int height, int width) {
+std::size_t measure(void (*block)(int, int), int height, int width, int count) {
 
     auto t1 = std::chrono::high_resolution_clock::now();
-    block(height, width);
+    for (int i = 0; i < count; ++i) {
+        block(height, width);
+    }
     auto t2 = std::chrono::high_resolution_clock::now();
 
-    return std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
+    return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 }
 
-void test_parralel(int x, int y) {
-    a_star_new_bidir_parallel(Point(0, 0), Point(x, y));
+void test_parallel(int x, int y) {
+    auto p = a_star_new_bidirectional_parallel(Point(0, 0), Point(x - 1, y - 1));
+//    output(m, p);
+//    int q = 1;
 }
 
 void test_local(int x, int y) {
-    a_star_classic(Point(0, 0), Point(x, y), distance);
+    a_star_sequential(Point(0, 0), Point(x - 1, y - 1), distance);
 }
 
-
-
+#define BATCH 10
 int main() {
-    std::ofstream myfile;
-    myfile.open ("parallel.csv");
+    std::ofstream stats;
+    stats.open("stats.csv");
 
-    std::cout << "parallel" << std::endl;
     for (int i = 10; i < 100; ++i) {
-        auto totalTime = 0;
-        for (auto x = 0; x < 10; ++x) {
-            m.generate(i, i);
-            totalTime += measure(test_parralel, i, i);
-        }
-
-        std::cout << totalTime / 5 << std::endl;
-        auto localTime = measure(test_local, i, i);
-        myfile << i * i << "," << totalTime / 10 << "," << localTime << std::endl;
+        m.generate(i, i);
+        auto totalTime = measure(test_parallel, i, i, BATCH);
+        auto localTime = measure(test_local, i, i, BATCH);
+        stats << i * i << "," << totalTime / BATCH << "," << localTime / BATCH << std::endl;
     }
-    myfile.close();
+    stats.close();
 
-//    std::cout << "local" << std::endl;
-//    for (int i = 10; i < 76; ++i) {
-//        m.generate(i, i);
-//
-//        std::cout << measure(test_local, i, i) << std::endl;
-//    }
-
-
-//    auto p = a_star_new_bidir_parallel(Point(0, 0), Point(19, 19));
-//    output(m, p);
-
-//    auto p =
-//    for (auto x : p) {
-//        std::cout << x.x << " " << x.y << std::endl;
-//    }
-//    auto map = TestMapGenerator().generate();
-//    TestPrinter().output(map, ClassicAStar(map).trace());
-//
     return 0;
 }
