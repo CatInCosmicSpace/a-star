@@ -10,6 +10,7 @@
 #include <chrono>
 #include <functional>
 #include "structs.h"
+#include <fstream>
 
 
 std::vector<Vector> dir4 = {
@@ -405,39 +406,49 @@ void output(maze& map, Path& path) {
 }
 
 
-std::size_t measure(void (*block)()) {
+std::size_t measure(void (*block)(int, int), int height, int width) {
 
     auto t1 = std::chrono::high_resolution_clock::now();
-    block();
+    block(height, width);
     auto t2 = std::chrono::high_resolution_clock::now();
 
     return std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
 }
 
-void test_parralel() {
-    a_star_new_bidir_parallel(Point(0, 0), Point(49, 49));
+void test_parralel(int x, int y) {
+    a_star_new_bidir_parallel(Point(0, 0), Point(x, y));
 }
 
-void test_local() {
-    a_star_classic(Point(0, 0), Point(49, 49), distance);
+void test_local(int x, int y) {
+    a_star_classic(Point(0, 0), Point(x, y), distance);
 }
 
 
 
 int main() {
+    std::ofstream myfile;
+    myfile.open ("parallel.csv");
 
     std::cout << "parallel" << std::endl;
-    for (int i = 0; i < 10; ++i) {
-        m.generate(50, 50);
-        std::cout << measure(test_parralel) << std::endl;
-    }
+    for (int i = 10; i < 100; ++i) {
+        auto totalTime = 0;
+        for (auto x = 0; x < 10; ++x) {
+            m.generate(i, i);
+            totalTime += measure(test_parralel, i, i);
+        }
 
-    std::cout << "local" << std::endl;
-    for (int i = 0; i < 10; ++i) {
-        m.generate(50, 50);
-
-        std::cout << measure(test_local) << std::endl;
+        std::cout << totalTime / 5 << std::endl;
+        auto localTime = measure(test_local, i, i);
+        myfile << i * i << "," << totalTime / 10 << "," << localTime << std::endl;
     }
+    myfile.close();
+
+//    std::cout << "local" << std::endl;
+//    for (int i = 10; i < 76; ++i) {
+//        m.generate(i, i);
+//
+//        std::cout << measure(test_local, i, i) << std::endl;
+//    }
 
 
 //    auto p = a_star_new_bidir_parallel(Point(0, 0), Point(19, 19));
