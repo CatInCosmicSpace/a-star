@@ -8,7 +8,7 @@
 #include <memory>
 #include <cmath>
 
-#define WALL std::nanf("wall")
+#define WALL 0.f
 
 struct grid {
     std::vector<float> vertical;
